@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/*
+ * Colour aliases. `inline` makes these resolve to the runtime custom properties
+ * below rather than baking a value into the generated CSS, which is what lets a
+ * single stylesheet theme many cards differently at the same time.
+ */
+@theme inline {
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-accent-dark: var(--brand-accent-dark);
+  --color-brand-wash: var(--brand-wash);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-slate: var(--brand-slate);
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-line: var(--brand-line);
+}
+
+@theme {
+  --font-display:
+    "Arial Black", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --tracking-tightest: -0.06em;
+  --tracking-brutal: 0.22em;
+}
+
+/* Default palette, derived from the default main colour. Any themed subtree
+   overrides these on its own root element. */
+:root {
+  --brand-accent: #0038a8;
+  --brand-accent-dark: #0a2b74;
+  --brand-wash: #e9eef8;
+  --brand-ink: #0d0e12;
+  --brand-slate: #4a5568;
+  --brand-bg: #f8f9fa;
+  --brand-line: #d9dce1;
+}
+
+/* Custom utilities ported from the source HTML <style> blocks */
+@utility font-heavy-title {
+  font-family:
+    "Arial Black", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  font-weight: 900;
+  line-height: 0.88;
+  letter-spacing: -0.05em;
+}
+
+@utility font-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.28em;
+}
+
+@utility portrait-mask {
+  -webkit-mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
+  mask-image: linear-gradient(to bottom, black 82%, transparent 100%);
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--brand-bg);
+  color: var(--brand-ink);
+}

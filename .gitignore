@@ -45,3 +45,11 @@ next-env.d.ts
 /assets/
 /html/
 /public/*.svg
+
+# generic ignores carried over from the GitHub Node template
+logs
+pids
+*.pid
+*.log
+.npm
+.eslintcache

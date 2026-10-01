@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ContactDock } from "@/components/contact-dock";
 import { ThemeScope } from "@/components/theme-scope";
+import { getProfileSlug } from "@/lib/site-url";
 import { profileLinks, type Profile } from "@/lib/types";
 
 /** Split a name so the heavy title can stack it on two lines like the design. */
@@ -36,7 +37,7 @@ function Portrait({ profile }: { profile: Profile }) {
   );
 }
 
-/** Full-screen card, used at /u/[id]. */
+/** Full-screen card, used at /u/<username>. */
 export function ProfileCard({ profile }: { profile: Profile }) {
   const links = profileLinks(profile.links);
   const [first, ...rest] = nameLines(profile.name);
@@ -84,6 +85,43 @@ export function ProfileCard({ profile }: { profile: Profile }) {
   );
 }
 
+/**
+ * Circular monogram drawn entirely in SVG. Deliberately not a photo: the grid
+ * shows initials so every tile renders instantly, stays tiny, and still reads
+ * clearly when the tile is only a few dozen pixels across.
+ */
+function Monogram({ name, className }: { name: string; className?: string }) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters =
+    parts.length >= 2
+      ? ((parts[0][0] ?? "") + (parts[parts.length - 1][0] ?? "")).toUpperCase()
+      : (parts[0] ?? "?").slice(0, 2).toUpperCase();
+
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="50" cy="50" r="50" fill="var(--brand-accent)" />
+      <text
+        x="50"
+        y="51"
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="var(--brand-bg)"
+        fontFamily="'Arial Black', Arial, sans-serif"
+        fontWeight="900"
+        fontSize={letters.length > 1 ? "44" : "56"}
+        letterSpacing="-0.04em"
+      >
+        {letters}
+      </text>
+    </svg>
+  );
+}
+
 /** Compact tile used in the grid on the home page. */
 export function ProfileTile({
   profile,
@@ -97,53 +135,29 @@ export function ProfileTile({
   return (
     <ThemeScope mainColor={profile.mainColor}>
       <Link
-        href={`/u/${profile.id}`}
-        className="group flex flex-col border border-brand-ink bg-brand-bg transition-transform hover:-translate-y-0.5"
+        href={`/u/${getProfileSlug(profile)}`}
+        className="group flex items-center gap-3 border border-brand-ink bg-brand-bg p-3 transition-transform hover:-translate-y-0.5"
       >
-        <div className="flex items-center justify-between gap-3 border-b border-brand-ink px-4 py-2">
-          <p className="font-mono text-[10px] font-bold tracking-brutal text-brand-accent uppercase">
-            {profile.year || "—"}
-          </p>
-          {qr ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qr}
-              alt=""
-              className="h-12 w-12 shrink-0"
-              loading="lazy"
-            />
-          ) : null}
-        </div>
+        <Monogram name={profile.name} className="h-14 w-14 shrink-0" />
 
-        <div className="flex flex-1 items-center justify-center bg-brand-wash px-4 py-6">
-          {profile.photo ? (
-            <Image
-              src={`/api/photo/${profile.id}`}
-              alt={profile.name}
-              width={profile.photoWidth || 600}
-              height={profile.photoHeight || 900}
-              className="max-h-52 w-auto object-contain"
-            />
-          ) : (
-            <span className="font-heavy-title text-brand-line text-6xl">
-              {(profile.name.trim()[0] ?? "?").toUpperCase()}
+        <h2 className="min-w-0 flex-1 font-heavy-title text-brand-ink text-2xl uppercase leading-none">
+          <span className="block truncate">{first}</span>
+          {rest.map((line) => (
+            <span key={line} className="block truncate">
+              {line}
             </span>
-          )}
-        </div>
+          ))}
+        </h2>
 
-        <div className="border-t border-brand-ink px-4 py-3">
-          <h2 className="font-heavy-title text-brand-ink text-2xl uppercase leading-none">
-            <span className="block">{first}</span>
-            {rest.map((line) => (
-              <span key={line} className="block" >
-                {line}
-              </span>
-            ))}
-          </h2>
-          <p className="font-mono mt-2 text-[10px] font-bold tracking-brutal text-brand-slate uppercase">
-            {profile.branch || "—"}
-          </p>
-        </div>
+        {qr ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={qr}
+            alt=""
+            className="h-12 w-12 shrink-0"
+            loading="lazy"
+          />
+        ) : null}
       </Link>
     </ThemeScope>
   );

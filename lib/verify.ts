@@ -9,6 +9,12 @@ import {
   verifyCredentials,
 } from "./session-token.ts";
 import { toHref, profileLinks } from "./types.ts";
+import {
+  sanitizeUsername,
+  suggestUsername,
+  usernameProblem,
+  USERNAME_MAX,
+} from "./username.ts";
 
 let failures = 0;
 function check(label: string, condition: boolean, extra?: unknown) {
@@ -143,6 +149,50 @@ check("wrong username fails", !verifyCredentials("root", "hunter2"));
 
 process.env.ADMIN_PASSWORD = "";
 check("fails closed when unconfigured", !verifyCredentials("admin", ""));
+
+console.log("\n--- username slugs ---");
+check("lowercases and dashes", sanitizeUsername("Yashwant Singh") === "yashwant-singh");
+check("strips accents", sanitizeUsername("José Álvarez") === "jose-alvarez");
+check("collapses punctuation runs", sanitizeUsername("A__B   C!!") === "a-b-c");
+check("trims leading and trailing dashes", sanitizeUsername("--bob--") === "bob");
+check("underscores become dashes, digits survive", sanitizeUsername("a_b2") === "a-b2");
+check("empty input stays empty", sanitizeUsername("!!!") === "");
+check(
+  "caps length without a trailing dash",
+  !sanitizeUsername("x".repeat(USERNAME_MAX + 10)).endsWith("-"),
+  sanitizeUsername("x".repeat(USERNAME_MAX + 10)).length,
+);
+check("sanitising twice is stable", (() => {
+  const once = sanitizeUsername("Yashwant  Singh!!");
+  return sanitizeUsername(once) === once;
+})());
+
+check("accepts a good slug", usernameProblem("yashwant-singh") === null);
+check("rejects a short slug", usernameProblem("ab") !== null);
+check("rejects a leading digit", usernameProblem("2cool") !== null);
+check("rejects an empty slug", usernameProblem("") !== null);
+check("rejects reserved admin", usernameProblem("admin") !== null);
+check("rejects reserved api", usernameProblem("api") !== null);
+check("rejects underscores the sanitiser would strip", usernameProblem("a_b") !== null);
+check("allows a longer name than the route", usernameProblem("login-button") === null);
+
+check("suggests from a full name", suggestUsername("Yashwant Singh") === "yashwant-singh");
+check("suggestion matches typing the full name", (() => {
+  const name = "Yashwant Kumar Singh";
+  return suggestUsername(name) === sanitizeUsername(name);
+})());
+check("short name borrows a second word", suggestUsername("Li Wei") === "li-wei");
+check("strips accents in a suggestion", suggestUsername("José Álvarez") === "jose-alvarez");
+check("avoids suggesting a reserved word", suggestUsername("Admin") === "admin-nss");
+check("returns empty for a nonsense name", suggestUsername("***") === "");
+check("drops trailing words rather than cutting mid-word", (() => {
+  const name = "alexander benjamin christopher darcy";
+  const suggested = suggestUsername(name).split("-");
+  // Every piece must be an intact leading word of the name, never a fragment.
+  return suggested.every((word, i) => word === name.split(" ")[i]);
+})(), suggestUsername("alexander benjamin christopher darcy"));
+
+check("a one-letter name is flagged rather than accepted", usernameProblem(suggestUsername("Li")) !== null);
 
 console.log(`\n${failures === 0 ? "All checks passed." : `${failures} check(s) failed.`}`);
 process.exit(failures === 0 ? 0 : 1);

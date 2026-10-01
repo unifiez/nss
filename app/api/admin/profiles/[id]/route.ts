@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/require-admin";
-import { getProfile, parseProfileInput } from "@/lib/profiles";
-import { getProfiles } from "@/lib/db";
+import { getProfile, parseProfileInput, resolveUsername } from "@/lib/profiles";
+import { duplicateKeyMessage } from "@/lib/db-errors";
+import { ensureProfileIndexes, getProfiles } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +26,16 @@ export async function PATCH(
     if (!existing) return NextResponse.json({ error: "Profile not found." }, { status: 404 });
 
     const input = parseProfileInput(body);
+    await ensureProfileIndexes();
+
+    // Excluding this profile from the uniqueness check is what lets an admin
+    // re-save a profile without its own username counting as a clash.
+    const username = await resolveUsername(input.username, input.name, id);
+
     const profiles = await getProfiles();
     await profiles.updateOne(
       { id },
-      { $set: { ...input, updatedAt: new Date().toISOString() } },
+      { $set: { ...input, username, updatedAt: new Date().toISOString() } },
     );
 
     const doc = await profiles.findOne({ id });
@@ -36,6 +43,8 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, profile: doc });
   } catch (err: unknown) {
+    const friendly = duplicateKeyMessage(err);
+    if (friendly) return NextResponse.json({ error: friendly }, { status: 409 });
     const message = err instanceof Error ? err.message : "Failed to update profile.";
     return NextResponse.json({ error: message }, { status: 400 });
   }

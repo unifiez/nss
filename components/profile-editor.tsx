@@ -1,11 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PhotoField, type PhotoValue } from "@/components/photo-field";
+import {
+  sanitizeUsername,
+  suggestUsername,
+  usernameProblem,
+} from "@/lib/username";
 
 export type ProfileDraft = {
   id?: string;
   name: string;
+  username: string;
   branch: string;
   year: string;
   mainColor: string;
@@ -14,6 +20,7 @@ export type ProfileDraft = {
 
 const emptyDraft = (mainColor: string): ProfileDraft => ({
   name: "",
+  username: "",
   branch: "",
   year: "",
   mainColor,
@@ -22,6 +29,12 @@ const emptyDraft = (mainColor: string): ProfileDraft => ({
   photoHeight: 0,
   links: { email: "", phone: "", instagram: "", linkedin: "" },
 });
+
+type Availability =
+  | { state: "idle" }
+  | { state: "checking" }
+  | { state: "ok"; username: string }
+  | { state: "bad"; message: string };
 
 export function ProfileEditor({
   initial,
@@ -40,12 +53,75 @@ export function ProfileEditor({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Only the server's answer lives in state. "blank", "malformed" and
+  // "still asking" are derived during render, which keeps this out of an
+  // effect and avoids a cascade of re-renders per keystroke.
+  const [checked, setChecked] = useState<{
+    username: string;
+    available: boolean;
+    problem?: string;
+  } | null>(null);
+
+  // Once the admin edits the username themselves we stop overwriting it with
+  // suggestions derived from the name.
+  const usernameTouched = useRef(Boolean(initial?.username));
 
   const set = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }));
 
   const setLink = (key: keyof ProfileDraft["links"], value: string) =>
     setDraft((d) => ({ ...d, links: { ...d.links, [key]: value } }));
+
+  function onNameChange(value: string) {
+    setDraft((d) => {
+      if (usernameTouched.current) return { ...d, name: value };
+      // Keep typing live: show the sanitised form of what they are typing,
+      // falling back to a name-derived suggestion when it sanitises away.
+      const typed = sanitizeUsername(value);
+      const username = typed.length >= 3 ? typed : suggestUsername(value);
+      return { ...d, name: value, username };
+    });
+  }
+
+  const username = draft.username;
+  const cleanUsername = sanitizeUsername(username);
+  const shapeProblem = cleanUsername ? usernameProblem(cleanUsername) : null;
+
+  // Debounced so a fast typist does not fire a request per keystroke. The
+  // response for a username we have since edited past is ignored on read.
+  useEffect(() => {
+    if (!cleanUsername || shapeProblem) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const query = initial?.id ? `?exclude=${encodeURIComponent(initial.id)}` : "";
+      const res = await fetch(`/api/admin/usernames/${cleanUsername}${query}`, {
+        cache: "no-store",
+      }).catch(() => null);
+      const json = await res?.json().catch(() => ({}));
+      if (cancelled || !res || !res.ok) return;
+      setChecked({
+        username: json.username ?? cleanUsername,
+        available: Boolean(json.available),
+        problem: json.problem,
+      });
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [cleanUsername, shapeProblem, initial?.id]);
+
+  const availability: Availability = !cleanUsername
+    ? { state: "idle" }
+    : shapeProblem
+      ? { state: "bad", message: shapeProblem }
+      : checked?.username === cleanUsername
+        ? checked.available
+          ? { state: "ok", username: checked.username }
+          : { state: "bad", message: checked.problem ?? "That username is unavailable." }
+        : { state: "checking" };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,6 +149,22 @@ export function ProfileEditor({
     onSaved(json.profile);
   }
 
+  const availabilityLine = (() => {
+    if (!username.trim()) {
+      return { tone: "text-brand-slate", text: "Left blank, we build one from the name." };
+    }
+    if (availability.state === "checking") {
+      return { tone: "text-brand-slate", text: "Checking…" };
+    }
+    if (availability.state === "bad") {
+      return { tone: "text-red-600", text: availability.message };
+    }
+    if (availability.state === "ok") {
+      return { tone: "text-brand-accent", text: "Available — /u/" + availability.username };
+    }
+    return { tone: "text-brand-slate", text: "" };
+  })();
+
   return (
     <form onSubmit={submit} className="border border-brand-ink bg-brand-bg p-4">
       <h2 className="font-heavy-title text-2xl uppercase">
@@ -84,10 +176,29 @@ export function ProfileEditor({
           Name
           <input
             value={draft.name}
-            onChange={(e) => set("name", e.target.value)}
+            onChange={(e) => onNameChange(e.target.value)}
             className="mt-2 w-full border border-brand-ink bg-white px-3 py-2 text-sm font-normal tracking-normal normal-case outline-none focus:bg-brand-wash"
             required
           />
+        </label>
+
+        <label className="block text-[11px] font-bold uppercase tracking-brutal">
+          Username
+          <input
+            value={draft.username}
+            onChange={(e) => {
+              usernameTouched.current = true;
+              set("username", e.target.value);
+            }}
+            placeholder="yashwant-singh"
+            spellCheck={false}
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="mt-2 w-full border border-brand-ink bg-white px-3 py-2 font-mono text-sm tracking-normal normal-case outline-none focus:bg-brand-wash"
+          />
+          <span className={`mt-1 block text-[11px] normal-case ${availabilityLine.tone}`}>
+            {availabilityLine.text}
+          </span>
         </label>
 
         <label className="block text-[11px] font-bold uppercase tracking-brutal">

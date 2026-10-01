@@ -48,7 +48,7 @@ export default async function HomePage() {
   }
 
   const qrs = await Promise.all(
-    profiles.map((p) => qrDataUrl(getProfileUrl(p.id), p.mainColor)),
+    profiles.map((p) => qrDataUrl(getProfileUrl(p), p.mainColor)),
   );
 
   return (
@@ -66,7 +66,7 @@ export default async function HomePage() {
           </p>
         </header>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {profiles.map((profile, i) => (
             <ProfileTile key={profile.id} profile={profile} qr={qrs[i]} />
           ))}

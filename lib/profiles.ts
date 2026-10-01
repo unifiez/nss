@@ -1,6 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { getProfiles, getSettings } from "@/lib/db";
 import type { Profile } from "@/lib/types";
+import {
+  sanitizeUsername,
+  suggestUsername,
+  USERNAME_MAX,
+  usernameProblem,
+} from "@/lib/username";
 import { DEFAULT_MAIN_COLOR, normalizeHex } from "@/lib/theme";
 
 export { EMPTY_LINKS } from "@/lib/types";
@@ -65,9 +71,19 @@ export async function listProfilesSafe(): Promise<Profile[]> {
   }
 }
 
+/** Look up by the immutable internal id. Used by admin and photo routes. */
 export async function getProfile(id: string): Promise<Profile | null> {
   const profiles = await getProfiles();
   return profiles.findOne({ id });
+}
+
+/**
+ * Look up a public slug. A username always wins over a matching id, and
+ * resolveUsername keeps the two from ever colliding in the first place.
+ */
+export async function getProfileBySlug(slug: string): Promise<Profile | null> {
+  const profiles = await getProfiles();
+  return profiles.findOne({ $or: [{ username: slug }, { id: slug }] });
 }
 
 export async function countProfiles(): Promise<number> {
@@ -75,8 +91,75 @@ export async function countProfiles(): Promise<number> {
   return profiles.countDocuments();
 }
 
+/**
+ * True when the slug is already spoken for. Both fields are checked because a
+ * username that matches somebody's random id would make /u/<slug> ambiguous.
+ */
+export async function isUsernameTaken(
+  username: string,
+  excludeId?: string,
+): Promise<boolean> {
+  const profiles = await getProfiles();
+  const doc = await profiles.findOne(
+    {
+      $or: [{ username }, { id: username }],
+      ...(excludeId ? { id: { $ne: excludeId } } : {}),
+    },
+    { projection: { _id: 1 } },
+  );
+  return Boolean(doc);
+}
+
+/**
+ * Work out the username to store.
+ *
+ * An explicit value the admin typed is honoured as-is (after sanitising) and a
+ * clash is reported rather than silently rewritten, so the URL always reflects
+ * a choice somebody made. A blank or unusable value falls back to one derived
+ * from the name, with a numeric suffix appended until it is free — creating a
+ * profile can therefore never fail just because the field was skipped.
+ */
+export async function resolveUsername(
+  raw: string,
+  name: string,
+  excludeId?: string,
+): Promise<string> {
+  const requested = raw.trim();
+
+  if (requested) {
+    const candidate = sanitizeUsername(requested);
+    const problem = usernameProblem(candidate);
+    if (problem) throw new Error(problem);
+    if (await isUsernameTaken(candidate, excludeId)) {
+      throw new Error(
+        `The username "${candidate}" is already taken. Choose another one.`,
+      );
+    }
+    return candidate;
+  }
+
+  const base = suggestUsername(name);
+  if (!base || usernameProblem(base)) {
+    // e.g. a name of just "Li" derives "li", which is below the minimum and
+    // appending -2/-3 would not help. The form already flags this while
+    // typing, so an explicit ask here is a backstop, not the usual path.
+    throw new Error(
+      "Could not build a valid username from this name. Please enter one of at least 3 characters.",
+    );
+  }
+
+  for (let n = 1; n <= 50; n += 1) {
+    const suffix = n === 1 ? "" : `-${n}`;
+    const candidate = `${base.slice(0, USERNAME_MAX - suffix.length)}${suffix}`;
+    if (!(await isUsernameTaken(candidate, excludeId))) return candidate;
+  }
+  throw new Error("Could not allocate a unique username.");
+}
+
 export type ProfileInput = {
   name: string;
+  /** Sanitised, but not yet checked for uniqueness. Empty means "derive one". */
+  username: string;
   branch: string;
   year: string;
   mainColor: string;
@@ -117,6 +200,9 @@ function cleanPhoto(value: unknown): string | null {
 /**
  * Validate a create/update payload coming from the admin panel.
  * Throws with a user-facing message so route handlers can surface it directly.
+ *
+ * `username` is validated for shape only; uniqueness needs the database, so the
+ * route handlers resolve it through resolveUsername.
  */
 export function parseProfileInput(body: unknown): ProfileInput {
   const input = (body ?? {}) as Record<string, unknown>;
@@ -130,8 +216,11 @@ export function parseProfileInput(body: unknown): ProfileInput {
     throw new Error("Main colour must be a hex value like #0038a8.");
   }
 
+  const username = sanitizeUsername(text(input.username, USERNAME_MAX + 8));
+
   return {
     name,
+    username,
     branch: text(input.branch, 60),
     year: text(input.year, 30),
     mainColor,

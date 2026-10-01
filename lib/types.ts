@@ -20,8 +20,11 @@ export type Links = {
 
 /** One person, stored in the `profiles` collection. */
 export type Profile = {
-  /** Public random slug, used in /u/[id] and encoded in the QR code. */
+  /** Immutable internal key. Used by admin and photo routes, never by URLs. */
   id: string;
+  /** Public slug shown in /u/<username> and encoded in the QR code. Unique.
+   *  Absent on profiles created before usernames existed. */
+  username?: string | null;
   name: string;
   branch: string;
   year: string;

@@ -50,3 +50,41 @@ export async function getProfiles(): Promise<Collection<Profile>> {
 export async function getSettings(): Promise<Collection<Settings>> {
   return (await getDb()).collection<Settings>("settings");
 }
+
+let indexesReady: Promise<void> | null = null;
+
+/**
+ * Create the indexes that make `id` and `username` unique.
+ *
+ * The write routes already pre-check for clashes so they can return a readable
+ * message, but a pre-check alone loses a race between two admins saving at the
+ * same moment. This index is the actual guarantee.
+ *
+ * Failures are logged and swallowed rather than thrown: losing the database
+ * backstop should not take the whole app down, and the next request retries.
+ */
+export function ensureProfileIndexes(): Promise<void> {
+  if (!indexesReady) {
+    indexesReady = (async () => {
+      const profiles = await getProfiles();
+      await profiles.createIndex({ id: 1 }, { unique: true, name: "id_unique" });
+      await profiles.createIndex(
+        { username: 1 },
+        {
+          unique: true,
+          name: "username_unique",
+          // Only real usernames participate, so legacy documents with no
+          // username field — or an empty one — never collide with each other.
+          partialFilterExpression: { username: { $type: "string", $gt: "" } },
+        },
+      );
+    })().catch((error) => {
+      indexesReady = null;
+      console.warn(
+        "[db] could not ensure profile indexes:",
+        error instanceof Error ? error.message : error,
+      );
+    });
+  }
+  return indexesReady;
+}

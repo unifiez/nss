@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { ProfileEditor, type ProfileDraft } from "@/components/profile-editor";
 import { ThemeScope } from "@/components/theme-scope";
 import { useAdminSession } from "@/components/use-admin-session";
-import { getProfileUrl } from "@/lib/site-url";
+import { getProfileSlug, getProfileUrl } from "@/lib/site-url";
 import type { Profile } from "@/lib/types";
 
 type Panel = { kind: "form"; draft: ProfileDraft | null } | { kind: "list" } | null;
@@ -66,11 +66,11 @@ export default function AdminDashboard() {
     }
   }
 
-  async function copyLink(id: string) {
-    const url = getProfileUrl(id);
+  async function copyLink(profile: Profile) {
+    const url = getProfileUrl(profile);
     try {
       await navigator.clipboard.writeText(url);
-      setCopied(id);
+      setCopied(profile.id);
       setTimeout(() => setCopied(null), 1800);
     } catch {
       window.prompt("Copy this link:", url);
@@ -191,16 +191,49 @@ export default function AdminDashboard() {
                 ) : null}
               </div>
 
+              {/* QR preview plus print-ready downloads. SVG is the one to send a
+                  printer: it is vector, so it stays sharp at any card size. */}
+              <div className="shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/admin/qr/${profile.id}?format=svg`}
+                  alt={`QR code linking to ${profile.name}'s profile`}
+                  className="h-14 w-14 border border-brand-line bg-white p-0.5"
+                />
+                <div className="mt-1 flex gap-1">
+                  <a
+                    href={`/api/admin/qr/${profile.id}?format=png&size=2048&download=1`}
+                    className="font-mono border border-brand-ink px-1.5 py-0.5 text-[9px] font-bold tracking-brutal uppercase transition-colors hover:bg-brand-wash"
+                    title="Download 2048px PNG"
+                  >
+                    PNG
+                  </a>
+                  <a
+                    href={`/api/admin/qr/${profile.id}?format=svg&download=1`}
+                    className="font-mono border border-brand-ink px-1.5 py-0.5 text-[9px] font-bold tracking-brutal uppercase transition-colors hover:bg-brand-wash"
+                    title="Download vector SVG"
+                  >
+                    SVG
+                  </a>
+                </div>
+              </div>
+
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold uppercase">{profile.name}</p>
                 <p className="font-mono truncate text-[11px] text-brand-slate">
-                  {profile.branch || "—"} · {profile.year || "—"} · /u/{profile.id}
+                  {profile.branch || "—"} · {profile.year || "—"} · /u/
+                  {getProfileSlug(profile)}
                 </p>
+                {profile.username ? null : (
+                  <p className="mt-1 text-[11px] text-red-600">
+                    No username set — edit this profile to pick one.
+                  </p>
+                )}
               </div>
 
               <div className="flex gap-2">
                 <button
-                  onClick={() => copyLink(profile.id)}
+                  onClick={() => copyLink(profile)}
                   className="font-mono border border-brand-ink px-3 py-2 text-[11px] font-bold tracking-brutal uppercase transition-colors hover:bg-brand-wash"
                 >
                   {copied === profile.id ? "Copied" : "Copy link"}
@@ -212,6 +245,7 @@ export default function AdminDashboard() {
                       draft: {
                         id: profile.id,
                         name: profile.name,
+                        username: profile.username ?? "",
                         branch: profile.branch,
                         year: profile.year,
                         mainColor: profile.mainColor,

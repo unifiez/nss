@@ -29,7 +29,9 @@ function Portrait({ profile }: { profile: Profile }) {
       width={profile.photoWidth || 600}
       height={profile.photoHeight || 900}
       priority
-      className="portrait-mask pointer-events-none h-full max-h-[46dvh] w-auto object-contain object-center"
+      // className="portrait-mask pointer-events-none h-full max-h-[46dvh] w-auto object-contain object-center"
+      className="portrait-mask pointer-events-none h-full w-auto object-contain object-center"
+
     />
   );
 }
@@ -41,7 +43,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
 
   return (
     <ThemeScope mainColor={profile.mainColor}>
-      <main className="relative mx-auto flex h-[100dvh] w-full max-w-md select-none flex-col justify-between overflow-hidden border-x border-brand-line">
+      <main className="relative mx-auto flex h-[100dvh] w-full max-w-md select-none flex-col justify-between overflow-hidden">
         <section className="relative z-10 shrink-0 px-6 pt-10">
           <p className="font-mono mb-1.5 text-[11px] font-bold tracking-brutal text-brand-accent uppercase">
             NSS CORE
@@ -57,7 +59,7 @@ export function ProfileCard({ profile }: { profile: Profile }) {
         </section>
 
         <section className="relative -my-2 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden">
-          <div className="border-brand-line relative flex h-full w-full items-center justify-center border">
+          <div className=" relative flex h-full w-full items-center justify-center">
             <Portrait profile={profile} />
           </div>
         </section>
@@ -65,9 +67,10 @@ export function ProfileCard({ profile }: { profile: Profile }) {
         <section className="relative z-10 shrink-0 px-6 pb-10">
           <div>
             {/* Department / Subtitle */}
-            <p className="-mt-0.5 text-brand-slate text-[1.25rem] font-black uppercase leading-tight tracking-tight">
+            {/* <p className="-mt-0.5 text-brand-slate text-[1.25rem] font-black uppercase leading-tight tracking-tight"> */}
+            <h2 className="text-[2.25rem] font-heavy-title text-brand-blue uppercase leading-none tracking-tight">
               {profile.branch || "—"}
-            </p>
+            </h2>
             {/* Tenure / Period Tracker */}
             <p className="font-meta mt-2 text-[13px] font-bold tracking-[0.3em] text-brand-slate/70">
               {profile.year || "—"}

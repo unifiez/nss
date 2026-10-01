@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { qrPngBuffer, qrSvg } from "@/lib/qr";
 import { getProfile } from "@/lib/profiles";
 import { requireAdmin } from "@/lib/require-admin";
-import { getProfileUrl } from "@/lib/site-url";
+import { getProfileUrlFor } from "@/lib/request-site-url";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,7 @@ export async function GET(
     const search = new URL(request.url).searchParams;
     const format = search.get("format") === "png" ? "png" : "svg";
     const download = search.get("download") === "1";
-    const target = getProfileUrl(profile);
+    const target = await getProfileUrlFor(profile);
     const stem = fileStem(profile.name, profile.id);
 
     if (format === "png") {

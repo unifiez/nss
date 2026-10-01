@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { ProfileEditor, type ProfileDraft } from "@/components/profile-editor";
 import { ThemeScope } from "@/components/theme-scope";
 import { useAdminSession } from "@/components/use-admin-session";
-import { getProfileSlug, getProfileUrl } from "@/lib/site-url";
+import { getProfileSlug } from "@/lib/site-url";
 import type { Profile } from "@/lib/types";
 
 type Panel = { kind: "form"; draft: ProfileDraft | null } | { kind: "list" } | null;
@@ -67,7 +67,10 @@ export default function AdminDashboard() {
   }
 
   async function copyLink(profile: Profile) {
-    const url = getProfileUrl(profile);
+    // Build from the origin actually being viewed rather than a build-time
+    // constant, so a preview or deploy without NEXT_PUBLIC_SITE_URL still
+    // copies a link somebody can actually open.
+    const url = `${window.location.origin}/u/${getProfileSlug(profile)}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(profile.id);

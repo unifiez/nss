@@ -4,7 +4,7 @@ import { ThemeScope } from "@/components/theme-scope";
 import { getDbConfiguredMessage, isDbConfigured } from "@/lib/db";
 import { getDefaultMainColor, listProfilesSafe } from "@/lib/profiles";
 import { qrDataUrl } from "@/lib/qr";
-import { getProfileUrl } from "@/lib/site-url";
+import { getProfileUrlFor } from "@/lib/request-site-url";
 
 export const metadata: Metadata = {
   title: "NSS \u2014 Profiles",
@@ -48,7 +48,7 @@ export default async function HomePage() {
   }
 
   const qrs = await Promise.all(
-    profiles.map((p) => qrDataUrl(getProfileUrl(p), p.mainColor)),
+    profiles.map((p) => getProfileUrlFor(p).then((url) => qrDataUrl(url, p.mainColor))),
   );
 
   return (
